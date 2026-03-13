@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0c0c10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LaTeX" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <title>LaTeX Renderer</title>
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0c0c10;
+      --surface: #13131a;
+      --border: #1e1e2e;
+      --accent: #c9a84c;
+      --accent2: #7c6fcd;
+      --text: #e8e6df;
+      --muted: #5a5870;
+      --error: #e05252;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Subtle grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.3;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 1;
+      padding: 1.2rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    header span {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    .main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem;
+      gap: 1rem;
+    }
+
+    .input-area {
+      position: relative;
+    }
+
+    .input-label {
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .clear-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.7rem;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      transition: color 0.15s;
+    }
+    .clear-btn:active { color: var(--error); }
+
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      padding: 0.9rem 1rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+    textarea:focus {
+      border-color: var(--accent2);
+    }
+    textarea::placeholder {
+      color: var(--muted);
+      opacity: 0.7;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    .render-btn {
+      flex: 1;
+      background: var(--accent);
+      color: #0c0c10;
+      border: none;
+      border-radius: 8px;
+      padding: 0.85rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .render-btn:active {
+      opacity: 0.85;
+      transform: scale(0.98);
+    }
+
+    .mode-toggle {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.2s, color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mode-toggle.active {
+      border-color: var(--accent2);
+      color: var(--accent2);
+    }
+
+    .output-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .output-label {
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .output-box {
+      flex: 1;
+      min-height: 180px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-x: auto;
+      overflow-y: auto;
+      position: relative;
+      transition: border-color 0.3s;
+    }
+
+    .output-box.has-content {
+      border-color: #2a2a3e;
+      align-items: flex-start;
+    }
+
+    .output-box.error {
+      border-color: var(--error);
+    }
+
+    .placeholder-text {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+      line-height: 1.8;
+      opacity: 0.6;
+    }
+
+    .rendered {
+      width: 100%;
+      font-size: 1.15rem;
+      line-height: 2;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .error-msg {
+      color: var(--error);
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* KaTeX overrides */
+    .katex { color: var(--text) !important; }
+    .katex-display { overflow-x: auto; padding: 0.5rem 0; }
+
+    .examples {
+      border-top: 1px solid var(--border);
+      padding-top: 0.75rem;
+    }
+
+    .examples-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .example-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.3rem 0.75rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip:active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Render animation */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .rendered { animation: fadeIn 0.25s ease; }
+
+    /* Install banner */
+    #install-banner {
+      display: none;
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      right: 1rem;
+      background: var(--accent2);
+      color: #fff;
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      z-index: 100;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+      box-shadow: 0 4px 20px #0007;
+    }
+    #install-banner.show { display: flex; }
+    #install-banner span { flex: 1; }
+    #install-btn {
+      background: #fff;
+      color: var(--accent2);
+      border: none;
+      border-radius: 6px;
+      padding: 0.4rem 0.8rem;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    #dismiss-btn {
+      background: none;
+      border: none;
+      color: #ffffffaa;
+      font-size: 1.1rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>LaTeX</h1>
+  <span>Renderer</span>
+</header>
+
+<div class="main">
+  <div class="input-area">
+    <div class="input-label">
+      <span>LaTeX Input</span>
+      <button class="clear-btn" onclick="clearAll()">Clear</button>
+    </div>
+    <textarea id="input" placeholder="Paste your LaTeX here…&#10;&#10;e.g. x < -3 \cup -1 < x \leq -\tfrac{3}{5}&#10;&#10;Wrap in $...$ for inline or $$...$$ for display"></textarea>
+  </div>
+
+  <div class="controls">
+    <button class="render-btn" onclick="render()">Render →</button>
+    <button class="mode-toggle" id="modeBtn" onclick="toggleMode()">$$ display</button>
+  </div>
+
+  <div class="output-area">
+    <div class="output-label">Rendered Output</div>
+    <div class="output-box" id="output">
+      <p class="placeholder-text">Your rendered math<br/>will appear here</p>
+    </div>
+  </div>
+
+  <div class="examples">
+    <div class="examples-label">Quick Examples — tap to load</div>
+    <div class="example-chips">
+      <div class="chip" onclick="loadExample(this)">x &lt; -3 \cup x &gt; 3</div>
+      <div class="chip" onclick="loadExample(this)">\frac{-b \pm \sqrt{b^2-4ac}}{2a}</div>
+      <div class="chip" onclick="loadExample(this)">\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}</div>
+      <div class="chip" onclick="loadExample(this)">\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}</div>
+      <div class="chip" onclick="loadExample(this)">\vec{F} = m\vec{a}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Install banner -->
+<div id="install-banner">
+  <span>Install LaTeX Renderer to your home screen</span>
+  <button id="install-btn">Install</button>
+  <button id="dismiss-btn" onclick="dismissBanner()">✕</button>
+</div>
+
+<script>
+  // --- Mode: inline ($) or display ($$) ---
+  let displayMode = true;
+
+  function toggleMode() {
+    displayMode = !displayMode;
+    const btn = document.getElementById('modeBtn');
+    btn.textContent = displayMode ? '$$ display' : '$ inline';
+    btn.classList.toggle('active', !displayMode);
+  }
+
+  // --- Render ---
+  function render() {
+    const raw = document.getElementById('input').value.trim();
+    const out = document.getElementById('output');
+
+    if (!raw) {
+      out.className = 'output-box';
+      out.innerHTML = '<p class="placeholder-text">Your rendered math<br/>will appear here</p>';
+      return;
+    }
+
+    // Strip \boxed{} wrapper if present, keep inside
+    let latex = raw.replace(/^\\boxed\{([\s\S]*)\}$/, '$1').trim();
+    // Also strip $$ or $ wrappers if user added them
+    latex = latex.replace(/^\$\$?([\s\S]*?)\$\$?$/, '$1').trim();
+
+    try {
+      const html = katex.renderToString(latex, {
+        displayMode: displayMode,
+        throwOnError: true,
+        output: 'html',
+      });
+      out.className = 'output-box has-content';
+      out.innerHTML = `<div class="rendered">${html}</div>`;
+    } catch (e) {
+      // Try auto-render on raw input as fallback
+      try {
+        const html = katex.renderToString(latex, {
+          displayMode: displayMode,
+          throwOnError: false,
+          output: 'html',
+        });
+        out.className = 'output-box has-content';
+        out.innerHTML = `<div class="rendered">${html}</div>`;
+      } catch {
+        out.className = 'output-box error';
+        out.innerHTML = `<p class="error-msg">⚠ Could not render LaTeX<br/><br/>${e.message}</p>`;
+      }
+    }
+  }
+
+  function clearAll() {
+    document.getElementById('input').value = '';
+    const out = document.getElementById('output');
+    out.className = 'output-box';
+    out.innerHTML = '<p class="placeholder-text">Your rendered math<br/>will appear here</p>';
+  }
+
+  function loadExample(el) {
+    document.getElementById('input').value = el.textContent;
+    render();
+  }
+
+  // Render on Enter (Shift+Enter for newline)
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        render();
+      }
+    });
+  });
+
+  // --- PWA Install ---
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('install-banner').classList.add('show');
+  });
+
+  document.getElementById('install-btn').addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      dismissBanner();
+    }
+  });
+
+  function dismissBanner() {
+    document.getElementById('install-banner').classList.remove('show');
+  }
+
+  // --- Service Worker ---
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>
+</body>
+</html>
